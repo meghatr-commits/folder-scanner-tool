@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
 Folder Scanner - A command-line tool to analyze folder contents
-Usage: python3 folder_scanner.py <folder_path>
+Usage: python3 folder_scanner.py <folder_path> [--ext EXTENSION]
+
+Options:
+  --ext EXTENSION    Filter by file extension (e.g., --ext .txt or --ext txt)
 """
 
 import os
@@ -20,9 +23,20 @@ def format_size(size_bytes):
     return f"{size_bytes:.2f} PB"
 
 
-def scan_folder(folder_path):
-    """Scan folder and collect statistics"""
+def scan_folder(folder_path, filter_extension=None):
+    """Scan folder and collect statistics
+
+    Args:
+        folder_path: Path to the folder to scan
+        filter_extension: Optional file extension to filter by (e.g., '.txt' or 'txt')
+    """
     folder = Path(folder_path)
+
+    # Normalize filter extension
+    if filter_extension:
+        if not filter_extension.startswith('.'):
+            filter_extension = '.' + filter_extension
+        filter_extension = filter_extension.lower()
 
     if not folder.exists():
         print(f"Error: Folder '{folder_path}' does not exist.")
@@ -41,12 +55,21 @@ def scan_folder(folder_path):
     file_type_sizes = defaultdict(int)
 
     print(f"Scanning folder: {folder.absolute()}")
+    if filter_extension:
+        print(f"Filtering by extension: {filter_extension}")
     print("Please wait...\n")
 
     # Walk through all files
     for item in folder.rglob('*'):
         if item.is_file():
             try:
+                # Get file extension
+                extension = item.suffix.lower() if item.suffix else '.no-extension'
+
+                # Apply filter if specified
+                if filter_extension and extension != filter_extension:
+                    continue
+
                 file_size = item.stat().st_size
                 total_files += 1
                 total_size += file_size
@@ -57,7 +80,6 @@ def scan_folder(folder_path):
                     largest_file = item
 
                 # Track file types
-                extension = item.suffix.lower() if item.suffix else '.no-extension'
                 file_types[extension] += 1
                 file_type_sizes[extension] += file_size
 
@@ -72,7 +94,8 @@ def scan_folder(folder_path):
         'largest_size': largest_size,
         'file_types': dict(file_types),
         'file_type_sizes': dict(file_type_sizes),
-        'scan_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        'scan_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'filter_extension': filter_extension
     }
 
 
@@ -84,6 +107,8 @@ def generate_report(stats):
     report.append("=" * 60)
     report.append(f"Scan Time: {stats['scan_time']}")
     report.append(f"Folder: {stats['folder_path']}")
+    if stats.get('filter_extension'):
+        report.append(f"Filter: {stats['filter_extension']} files only")
     report.append("")
 
     report.append("SUMMARY")
@@ -134,18 +159,24 @@ def save_report(report_text, folder_path):
 
 def main():
     """Main function"""
-    if len(sys.argv) != 2:
-        print("Usage: python3 folder_scanner.py <folder_path>")
+    if len(sys.argv) < 2:
+        print("Usage: python3 folder_scanner.py <folder_path> [--ext EXTENSION]")
         print("Example: python3 folder_scanner.py ~/Documents")
+        print("Example: python3 folder_scanner.py ~/Documents --ext .txt")
         sys.exit(1)
 
     folder_path = sys.argv[1]
+    filter_extension = None
+
+    # Parse optional --ext argument
+    if len(sys.argv) >= 4 and sys.argv[2] == '--ext':
+        filter_extension = sys.argv[3]
 
     # Expand user path (e.g., ~/ -> /Users/username/)
     folder_path = os.path.expanduser(folder_path)
 
     # Scan the folder
-    stats = scan_folder(folder_path)
+    stats = scan_folder(folder_path, filter_extension)
 
     # Generate report
     report_text = generate_report(stats)
