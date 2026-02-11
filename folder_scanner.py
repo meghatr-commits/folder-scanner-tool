@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
 Folder Scanner - A command-line tool to analyze folder contents
-Usage: python3 folder_scanner.py <folder_path> [--ext EXTENSION]
+Usage: python3 folder_scanner.py <folder_path> [OPTIONS]
 
 Options:
   --ext EXTENSION    Filter by file extension (e.g., --ext .txt or --ext txt)
+  --min-size SIZE    Filter by minimum file size in bytes (e.g., --min-size 1024)
 """
 
 import os
@@ -23,12 +24,13 @@ def format_size(size_bytes):
     return f"{size_bytes:.2f} PB"
 
 
-def scan_folder(folder_path, filter_extension=None):
+def scan_folder(folder_path, filter_extension=None, min_size=None):
     """Scan folder and collect statistics
 
     Args:
         folder_path: Path to the folder to scan
         filter_extension: Optional file extension to filter by (e.g., '.txt' or 'txt')
+        min_size: Optional minimum file size in bytes
     """
     folder = Path(folder_path)
 
@@ -57,6 +59,8 @@ def scan_folder(folder_path, filter_extension=None):
     print(f"Scanning folder: {folder.absolute()}")
     if filter_extension:
         print(f"Filtering by extension: {filter_extension}")
+    if min_size:
+        print(f"Filtering by minimum size: {format_size(min_size)}")
     print("Please wait...\n")
 
     # Walk through all files
@@ -66,11 +70,15 @@ def scan_folder(folder_path, filter_extension=None):
                 # Get file extension
                 extension = item.suffix.lower() if item.suffix else '.no-extension'
 
-                # Apply filter if specified
+                file_size = item.stat().st_size
+
+                # Apply extension filter if specified
                 if filter_extension and extension != filter_extension:
                     continue
 
-                file_size = item.stat().st_size
+                # Apply size filter if specified
+                if min_size and file_size < min_size:
+                    continue
                 total_files += 1
                 total_size += file_size
 
@@ -95,7 +103,8 @@ def scan_folder(folder_path, filter_extension=None):
         'file_types': dict(file_types),
         'file_type_sizes': dict(file_type_sizes),
         'scan_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        'filter_extension': filter_extension
+        'filter_extension': filter_extension,
+        'min_size': min_size
     }
 
 
@@ -109,6 +118,8 @@ def generate_report(stats):
     report.append(f"Folder: {stats['folder_path']}")
     if stats.get('filter_extension'):
         report.append(f"Filter: {stats['filter_extension']} files only")
+    if stats.get('min_size'):
+        report.append(f"Minimum size: {format_size(stats['min_size'])}")
     report.append("")
 
     report.append("SUMMARY")
@@ -160,23 +171,37 @@ def save_report(report_text, folder_path):
 def main():
     """Main function"""
     if len(sys.argv) < 2:
-        print("Usage: python3 folder_scanner.py <folder_path> [--ext EXTENSION]")
+        print("Usage: python3 folder_scanner.py <folder_path> [OPTIONS]")
         print("Example: python3 folder_scanner.py ~/Documents")
         print("Example: python3 folder_scanner.py ~/Documents --ext .txt")
+        print("Example: python3 folder_scanner.py ~/Documents --min-size 1024")
         sys.exit(1)
 
     folder_path = sys.argv[1]
     filter_extension = None
+    min_size = None
 
-    # Parse optional --ext argument
-    if len(sys.argv) >= 4 and sys.argv[2] == '--ext':
-        filter_extension = sys.argv[3]
+    # Parse optional arguments
+    i = 2
+    while i < len(sys.argv):
+        if sys.argv[i] == '--ext' and i + 1 < len(sys.argv):
+            filter_extension = sys.argv[i + 1]
+            i += 2
+        elif sys.argv[i] == '--min-size' and i + 1 < len(sys.argv):
+            try:
+                min_size = int(sys.argv[i + 1])
+            except ValueError:
+                print(f"Error: Invalid size value '{sys.argv[i + 1]}'")
+                sys.exit(1)
+            i += 2
+        else:
+            i += 1
 
     # Expand user path (e.g., ~/ -> /Users/username/)
     folder_path = os.path.expanduser(folder_path)
 
     # Scan the folder
-    stats = scan_folder(folder_path, filter_extension)
+    stats = scan_folder(folder_path, filter_extension, min_size)
 
     # Generate report
     report_text = generate_report(stats)
