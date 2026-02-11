@@ -1,4 +1,4 @@
-# Folder Scanner Tool
+# Professional Folder Scanner
 
 A command-line tool that analyzes folder contents and generates detailed reports.
 
